@@ -55,6 +55,45 @@ details label{display:flex;align-items:center;gap:10px;margin-top:8px}
 details input[type=range]{flex:1}
 .msg{font-size:12px;color:var(--s4);min-height:16px}
 footer{text-align:center;font-size:10.5px;color:var(--mute);padding:0 12px 6px;letter-spacing:.2px}
+.ic{padding:13px 11px}
+
+/* ---------- PDF report (visible only when printing / saving as PDF) ---------- */
+#report{display:none}
+@media print{
+  @page{size:A4;margin:14mm 14mm 16mm}
+  html,body{height:auto!important;background:#fff!important;color:#1a1f36!important;overflow:visible!important}
+  body{display:block!important;padding:0!important}
+  body>*:not(#report){display:none!important}
+  #report{display:block;font-family:Inter,'Noto Sans Telugu',system-ui,sans-serif;color:#1a1f36;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:13px}
+  #report *{box-sizing:border-box}
+  #report .rp-head{background:#0b1020;color:#fff;border-radius:14px;padding:26px 28px}
+  #report .rp-head .k{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9aa5e8;font-weight:600}
+  #report .rp-head .t{font-size:30px;font-weight:700;margin:6px 0 4px}
+  #report .rp-head .s{font-size:12.5px;color:#b9c1ee}
+  #report .rp-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 22px}
+  #report .rp-meta div{border:1px solid #dfe3f5;border-radius:10px;padding:10px 12px;background:#f6f7fd}
+  #report .rp-meta b{display:block;font-size:15px;margin-top:3px}
+  #report .rp-meta span{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6b74a0;font-weight:600}
+  #report h2{font-size:15px;margin:0 0 10px;font-weight:700}
+  #report .rp-row{display:grid;grid-template-columns:130px 70px 70px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #e6e9f6;break-inside:avoid}
+  #report .rp-row.h{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:#6b74a0;font-weight:600;padding-top:0}
+  #report .rp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:var(--c)}
+  #report .rp-bar{height:8px;border-radius:4px;background:#e9ecf8;overflow:hidden}
+  #report .rp-bar i{display:block;height:100%;background:var(--c);border-radius:4px}
+  #report .rp-spk{break-before:page;page-break-before:always}
+  #report .rp-spk-h{border-left:9px solid var(--c);background:#f6f7fd;border-radius:0 12px 12px 0;padding:16px 20px;margin-bottom:14px}
+  #report .rp-spk-h .n{font-size:26px;font-weight:700;color:var(--c)}
+  #report .rp-spk-h .st{font-size:12px;color:#5a6390;margin-top:4px}
+  #report .rp-note{display:grid;grid-template-columns:84px 1fr;gap:12px;padding:9px 0 9px 12px;border-left:2px solid var(--c);margin-left:4px;border-bottom:1px solid #eceef8;break-inside:avoid}
+  #report .rp-note .tm{font-size:11px;color:#7a82ab;padding-top:3px;font-variant-numeric:tabular-nums}
+  #report .rp-note .tx{font-size:14px;line-height:1.75;word-break:break-word}
+  #report .rp-all{break-before:page;page-break-before:always}
+  #report .rp-line{display:grid;grid-template-columns:84px 92px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid #eceef8;break-inside:avoid}
+  #report .rp-line .tm{font-size:11px;color:#7a82ab;padding-top:3px}
+  #report .rp-line .who{font-size:11.5px;font-weight:700;color:var(--c);padding-top:2px}
+  #report .rp-line .tx{font-size:13.5px;line-height:1.7;word-break:break-word}
+  #report .rp-foot{margin-top:22px;text-align:center;font-size:10.5px;color:#8089b4;letter-spacing:.3px}
+}
 </style>
 </head>
 <body>
@@ -73,7 +112,8 @@ footer{text-align:center;font-size:10.5px;color:var(--mute);padding:0 12px 6px;l
   <div class="row">
     <button class="rec" id="rec"><span class="dot"></span><span id="recT">Start</span></button>
     <button class="ic" id="copy">Copy</button>
-    <button class="ic" id="save">Save</button>
+    <button class="ic" id="save">TXT</button>
+    <button class="ic" id="pdf">PDF</button>
     <button class="ic" id="clear">Clear</button>
   </div>
   <details>
@@ -83,6 +123,7 @@ footer{text-align:center;font-size:10.5px;color:var(--mute);padding:0 12px 6px;l
   </details>
 </div>
 <footer>Designed &amp; Architected by Krishnamurthy Kandregula · Made by Claude</footer>
+<div id="report"></div>
 
 <script>
 (()=>{
@@ -248,8 +289,8 @@ function commit(text){
   if(!text)return;
   const sp=majority(segStart-800);seen.add(sp);
   const last=lines[lines.length-1];
-  if(last&&last.spk===sp&&Date.now()-last.t<8000){last.text+=' '+text;last.t=Date.now();}
-  else lines.push({spk:sp,text,t:Date.now()});
+  if(last&&last.spk===sp&&last.l===lang&&Date.now()-last.t<8000){last.text+=' '+text;last.t=Date.now();}
+  else lines.push({spk:sp,text,t:Date.now(),l:lang});
   interimText='';segStart=0;renderPills();render();
 }
 function setupRec(){
@@ -336,6 +377,51 @@ $('save').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([asText()],{type:'text/plain;charset=utf-8'}));
   a.download='transcript-'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')+'.txt';a.click();
 };
+/* ---------- PDF export ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const wc=t=>t.trim().split(/\s+/).filter(Boolean).length;
+function buildReport(){
+  const by={};lines.forEach(l=>(by[l.spk]=by[l.spk]||[]).push(l));
+  const ids=Object.keys(by).map(Number).sort((a,b)=>a-b);
+  const totalW=lines.reduce((s,l)=>s+wc(l.text),0)||1;
+  const t0=lines[0].t,t1=lines[lines.length-1].t,secs=Math.round((t1-t0)/1000);
+  const dur=secs<60?'< 1 min':'~'+Math.round(secs/60)+' min';
+  const langs=[...new Set(lines.map(l=>l.l))].map(x=>x==='te-IN'?'తెలుగు (Telugu)':'English').join(' + ');
+  const dateStr=new Date(t0).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})+' · '+new Date(t0).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const col=i=>'--c:'+COLORS[i-1];
+  const foot='<div class="rp-foot">Designed &amp; Architected by Krishnamurthy Kandregula · Made by Claude</div>';
+  let h='<div class="rp-head"><div class="k">Śruta Lipi · Conversation Transcript</div><div class="t">Speaker-wise Notes</div><div class="s">'+esc(dateStr)+'</div></div>';
+  h+='<div class="rp-meta"><div><span>Speakers</span><b>'+ids.length+'</b></div><div><span>Contributions</span><b>'+lines.length+'</b></div><div><span>Words</span><b>'+totalW+'</b></div><div><span>Duration</span><b>'+dur+'</b></div></div>';
+  h+='<div class="rp-meta" style="grid-template-columns:1fr"><div><span>Language</span><b>'+esc(langs)+'</b></div></div>';
+  h+='<h2>Who spoke how much</h2><div class="rp-row h"><div>Speaker</div><div>Turns</div><div>Words</div><div>Share</div></div>';
+  ids.forEach(i=>{
+    const w=by[i].reduce((s,l)=>s+wc(l.text),0),p=Math.round(w/totalW*100);
+    h+='<div class="rp-row" style="'+col(i)+'"><div><span class="rp-dot"></span><b>Speaker '+i+'</b></div><div>'+by[i].length+'</div><div>'+w+'</div><div style="display:flex;align-items:center;gap:8px"><div class="rp-bar" style="flex:1"><i style="width:'+p+'%"></i></div><span>'+p+'%</span></div></div>';
+  });
+  h+=foot;
+  ids.forEach(i=>{
+    const w=by[i].reduce((s,l)=>s+wc(l.text),0);
+    h+='<section class="rp-spk" style="'+col(i)+'"><div class="rp-spk-h"><div class="n">Speaker '+i+'</div><div class="st">'+by[i].length+' contributions · '+w+' words · '+Math.round(w/totalW*100)+'% of conversation · first spoke at '+fmt(by[i][0].t)+'</div></div>';
+    by[i].forEach(l=>{h+='<div class="rp-note"><div class="tm">'+fmt(l.t)+'</div><div class="tx">'+esc(l.text)+'</div></div>';});
+    h+='</section>';
+  });
+  h+='<section class="rp-all"><h2>Full conversation · in order</h2>';
+  lines.forEach(l=>{h+='<div class="rp-line" style="'+col(l.spk)+'"><div class="tm">'+fmt(l.t)+'</div><div class="who">Speaker '+l.spk+'</div><div class="tx">'+esc(l.text)+'</div></div>';});
+  h+=foot+'</section>';
+  return h;
+}
+function exportPdf(){
+  if(interimText)commit(interimText);
+  if(!lines.length){msg.textContent='Nothing to export yet.';return;}
+  $('report').innerHTML=buildReport();
+  const old=document.title;
+  document.title='Transcript-'+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  const after=()=>{window.removeEventListener('afterprint',after);document.title=old;$('report').innerHTML='';};
+  window.addEventListener('afterprint',after);
+  msg.textContent='Choose “Save as PDF” (on iPhone: Share → Save to Files).';
+  Promise.all([document.fonts.load("500 14px 'Noto Sans Telugu'",'తెలుగు'),document.fonts.load('600 14px Inter')]).catch(()=>{}).then(()=>setTimeout(()=>window.print(),150));
+}
+$('pdf').onclick=exportPdf;
 renderPills();
 })();
 </script>
