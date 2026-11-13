@@ -148,6 +148,7 @@ details input[type=password],details input[type=text],details select{flex:1;min-
   </div>
   <details>
     <summary>Speaker settings</summary>
+    <label style="line-height:1.4"><input type="checkbox" id="useMic" checked> <span>Use voice mic (speaker detection &amp; recording). Turn off if captions keep stopping on iPhone.</span></label>
     <label style="line-height:1.4"><input type="checkbox" id="recAudio" checked> <span>Record meeting audio (tell everyone they are being recorded)</span></label>
     <label>Separation <input type="range" id="thr" min="1.5" max="10" step="0.1" value="4"><span id="thrV">4.0</span></label>
     <div style="margin-top:6px;line-height:1.5">Lower = splits voices more eagerly (more speakers). Higher = merges similar voices. Use a good mic and avoid overlapping speech.</div>
@@ -331,7 +332,9 @@ function commit(text){
   interimText='';segStart=0;renderPills();render();persist();
 }
 const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
-let recLive=false,worked=false,gotResult=false,failStreak=0,runStart=0,restartT=null,wdog=null;
+let recLive=false,worked=false,deniedCount=0,gotResult=false,failStreak=0,runStart=0,restartT=null,wdog=null;
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const standalone=!!(navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches));
 let audioBusy=false,audioInit=false,audioTries=0,audioT=null,lastStatus='';
 const status=t=>{lastStatus=t;msg.textContent=t;};
 const backoff=n=>n<=0?120:Math.min(300*Math.pow(2,n-1),4000);
@@ -344,12 +347,14 @@ function makeRec(){
   const mine=()=>r===rec;
   r.onstart=()=>{
     if(!mine())return;
-    recLive=true;worked=true;runStart=Date.now();
+    recLive=true;worked=true;deniedCount=0;runStart=Date.now();
     if(!audioInit){audioInit=true;clearTimeout(audioT);startAudio();}   // open the voice-analysis mic only after speech is live
   };
+  const ok=()=>{if(mine()){worked=true;deniedCount=0;}};   // any sign of life proves permission is fine
+  r.onaudiostart=r.onsoundstart=r.onspeechstart=ok;
   r.onresult=ev=>{
     if(!mine())return;
-    gotResult=true;failStreak=0;
+    worked=true;deniedCount=0;gotResult=true;failStreak=0;
     if(lastStatus&&msg.textContent===lastStatus)msg.textContent='';lastStatus='';
     let interim='';
     for(let i=ev.resultIndex;i<ev.results.length;i++){
@@ -366,11 +371,15 @@ function makeRec(){
     if(e==='no-speech'||e==='aborted')return;
     if(e==='language-not-supported'){msg.textContent='This browser does not support '+lang+' recognition.';stop();return;}
     if(e==='not-allowed'||e==='service-not-allowed'){
-      if(!worked){   // never worked since you tapped Start: a real block
-        msg.textContent='Microphone / speech permission was blocked. Allow Microphone and Speech Recognition for this site (iPhone: Settings → General → Keyboard → Enable Dictation).';
+      deniedCount++;
+      if(!worked&&deniedCount>=3){   // refused 3 times in a row and never worked: a real block
+        msg.textContent=(isIOS&&standalone)
+          ?'iPhone home-screen apps cannot keep speech recognition running. Open this page in Safari (not the home-screen icon) and tap Start.'
+          :'Microphone / speech permission was blocked. Allow Microphone and Speech Recognition for this site (iPhone: Settings → General → Keyboard → Enable Dictation).';
         stop();return;
       }
-      status('Speech was interrupted — reconnecting…');return;   // a restart was refused: keep trying, onend schedules it
+      status(worked?'The phone refused to restart speech — tap anywhere to resume.':'Waiting for speech permission…');
+      return;   // onend schedules the retry; never stop the session for this
     }
     if(e==='network')status('Speech service needs an internet connection — retrying…');
   };
@@ -380,8 +389,7 @@ function makeRec(){
     if(!running)return;
     const short=!gotResult&&Date.now()-runStart<1500;
     failStreak=short?failStreak+1:0;
-    if(failStreak>=8){msg.textContent='Speech recognition keeps stopping. Tap Start to resume.';stop();return;}
-    if(failStreak>=2)status('Reconnecting… tap anywhere to resume');
+    if(failStreak>=3)status('Captions paused by the phone — tap anywhere to resume.'+(mrec?' Audio is still recording.':'')+(isIOS?' If this keeps happening, open the page in Safari and turn off “Use voice mic” in Speaker settings.':''));
     scheduleRestart(backoff(failStreak));
   };
   return r;
@@ -454,6 +462,7 @@ function stopAudio(){ // end of session: release everything
 const cleanup=stopAudio;
 async function startAudio(){
   if(audioBusy||stream||!running)return;
+  if(!$('useMic').checked){if(!votes.length){seen.add(1);curSpk=1;votes.push({t:Date.now(),s:1});renderPills();}return;}
   audioBusy=true;
   try{
     const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:false,autoGainControl:true}});
@@ -536,7 +545,8 @@ function start(){
     return;
   }
   if(!SRC){msg.textContent='Live recognition needs Chrome, Edge or Safari (Android/desktop Chrome works best).';return;}
-  running=true;worked=false;failStreak=0;audioTries=0;audioInit=false;
+  running=true;worked=false;deniedCount=0;failStreak=0;audioTries=0;audioInit=false;
+  if(isIOS&&standalone)status('Tip: on iPhone, captions work best when this page is opened in Safari, not from the home-screen icon.');
   $('rec').classList.add('on');updRecT();
   startRec();                                   // inside the tap, so the browser allows it
   clearTimeout(audioT);audioT=setTimeout(()=>{if(!audioInit){audioInit=true;startAudio();}},2500);
@@ -741,6 +751,8 @@ async function exportPdf(){
   Promise.all([document.fonts.load("500 14px 'Noto Sans Telugu'",'తెలుగు'),document.fonts.load('600 14px Inter')]).catch(()=>{}).then(()=>setTimeout(()=>window.print(),150));
 }
 $('pdf').onclick=exportPdf;
+$('useMic').checked=store.get('sl_mic')!=='0';
+$('useMic').onchange=e=>store.set('sl_mic',e.target.checked?'1':'0');
 $('recAudio').checked=store.get('sl_rec')!=='0';
 $('recAudio').onchange=e=>store.set('sl_rec',e.target.checked?'1':'0');
 checkSaved();
